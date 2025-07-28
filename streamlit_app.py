@@ -17,6 +17,11 @@ Version: 2.0
 
 # Setup basic Streamlit config first
 import streamlit as st
+import os
+
+# Set environment variables for better performance
+os.environ['PYTHONHASHSEED'] = '0'
+os.environ['STREAMLIT_BROWSER_GATHER_USAGE_STATS'] = 'false'
 
 def get_login_status():
     """Mendapatkan status login user dari session state"""
@@ -35,21 +40,25 @@ st.set_page_config(
 )
 
 # Lazy imports - hanya import ketika diperlukan
+@st.cache_resource
 def get_auth_module():
     """Lazy import untuk modul auth"""
     from ui.auth import auth
     return auth
 
+@st.cache_resource
 def get_dashboard_module():
     """Lazy import untuk modul dashboard"""
     from ui.tools.Dashboard_Ringkasan import render_dashboard
     return render_dashboard
 
+@st.cache_resource
 def get_analysis_module():
     """Lazy import untuk modul analisis"""
     from ui.tools.Analisis_Data import render_data_analysis
     return render_data_analysis
 
+@st.cache_resource
 def get_prediction_module():
     """Lazy import untuk modul prediksi"""
     from ui.tools.Prediksi_Sentimen import render_sentiment_prediction

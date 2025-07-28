@@ -1,6 +1,31 @@
+[server]
+maxUploadSize = 50
+maxMessageSize = 50
+enableCORS = false
+enableXsrfProtection = false
+enableStaticServing = false
+
+[browser]
+gatherUsageStats = false
+
 [theme]
 base="dark"
 primaryColor="#0bc122"
+
+[runner]
+magicEnabled = false
+installTracer = false
+fixMatplotlib = true
+fastReruns = true
+
+[client]
+caching = true
+displayEnabled = true
+showErrorDetails = false
+toolbarMode = "minimal"
+
+[logger]
+level = "error"
 
 
 
