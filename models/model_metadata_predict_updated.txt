@@ -1,0 +1,6 @@
+sklearn_version: 1.5.0
+training_date: 2025-07-28T10:41:32.120474
+model_accuracy: 0.8787878787878788
+python_version: 3.12.5 (tags/v3.12.5:ff3bc82, Aug  6 2024, 20:45:27) [MSC v.1940 64 bit (AMD64)]
+model_type: SVM with TF-IDF
+compatibility_check: PASSED

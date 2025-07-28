@@ -1,0 +1,73 @@
+# ================================
+# .gitignore untuk Aplikasi Skripsi
+# ================================
+# File ini dikonfigurasi untuk menjaga keamanan data sensitif
+# sambil tetap mempertahankan transparansi kode untuk keperluan akademis
+
+# ================================
+# KEAMANAN & KREDENSIAL (WAJIB)
+# ================================
+# File konfigurasi dengan data sensitif
+.streamlit/secrets.toml
+config/client_secret_*.json
+config/*firebase*.json
+config/service_account.json
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# ================================
+# PYTHON CACHE & TEMPORARY FILES
+# ================================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+__pycache__
+*.so
+.Python
+
+# ================================
+# LOGS & OUTPUT FILES
+# ================================
+*.log
+log/*.log
+*.out
+
+# ================================
+# VIRTUAL ENVIRONMENT
+# ================================
+/venv/
+/env/
+.venv/
+env/
+venv/
+
+# ================================
+# IDE & EDITOR FILES
+# ================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ================================
+# OS GENERATED FILES
+# ================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ================================
+# NOTES FOR ACADEMIC PURPOSES
+# ================================
+# Model files (*.pkl) dan data CSV tetap di-include untuk transparansi skripsi
+# File secrets.toml.example tetap tersedia sebagai template
+# Struktur folder config/ dan log/ tetap terlihat di GitHub
