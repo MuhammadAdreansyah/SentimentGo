@@ -65,18 +65,25 @@ from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFacto
 # ==============================================================================
 
 # ==============================================================================
-# NLTK SETUP - Enhanced for Streamlit Cloud
+# NLTK SETUP - Optimized for Streamlit Cloud
 # ==============================================================================
 
 def ensure_nltk_data():
-    """Ensure NLTK data is available for Streamlit Cloud deployment"""
+    """Ensure NLTK data is available for Streamlit Cloud deployment - Optimized version"""
     import nltk
-    import streamlit as st
+    import os
+    
+    # Set NLTK data path for Streamlit Cloud
+    nltk_data_dir = os.path.join(os.path.expanduser('~'), 'nltk_data')
+    if not os.path.exists(nltk_data_dir):
+        os.makedirs(nltk_data_dir, exist_ok=True)
+    
+    if nltk_data_dir not in nltk.data.path:
+        nltk.data.path.append(nltk_data_dir)
     
     # List of required NLTK data
     required_nltk_data = [
         ('tokenizers/punkt', 'punkt'),
-        ('tokenizers/punkt_tab', 'punkt_tab'),
         ('corpora/stopwords', 'stopwords'),
     ]
     
@@ -89,25 +96,20 @@ def ensure_nltk_data():
             missing_data.append(data_name)
     
     if missing_data:
-        with st.spinner(f'📥 Downloading NLTK data: {", ".join(missing_data)}...'):
+        try:
             for data_name in missing_data:
-                try:
-                    nltk.download(data_name, quiet=True)
-                    st.success(f'✅ Downloaded NLTK {data_name}')
-                except Exception as e:
-                    st.warning(f'⚠️ Failed to download NLTK {data_name}: {str(e)}')
-                    # Try alternative approach
-                    try:
-                        nltk.download(data_name, quiet=False)
-                    except Exception as e2:
-                        st.error(f'❌ Critical error downloading NLTK {data_name}: {str(e2)}')
+                nltk.download(data_name, quiet=True, download_dir=nltk_data_dir)
+        except Exception as e:
+            # Fallback: continue without NLTK data
+            print(f"Warning: Could not download NLTK data: {e}")
+            pass
 
-# Initialize NLTK data
+# Initialize NLTK data quietly
 try:
     ensure_nltk_data()
 except Exception as e:
-    import streamlit as st
-    st.warning(f'⚠️ NLTK initialization warning: {str(e)}')
+    # Silent fallback for deployment
+    pass
 
 # ==============================================================================
 # CONSTANTS AND CONFIGURATION

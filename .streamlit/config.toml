@@ -1,6 +1,29 @@
+[server]
+maxUploadSize = 200
+maxMessageSize = 200
+enableCORS = false
+enableXsrfProtection = false
+
+[browser]
+gatherUsageStats = false
+
 [theme]
 base="dark"
 primaryColor="#0bc122"
+
+[runner]
+magicEnabled = true
+installTracer = false
+fixMatplotlib = true
+
+[client]
+caching = true
+displayEnabled = true
+showErrorDetails = false
+
+[logger]
+level = "info"
+messageFormat = "%(asctime)s %(message)s"
 
 
 

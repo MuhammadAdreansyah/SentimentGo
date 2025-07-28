@@ -17,6 +17,13 @@ import streamlit as st
 # CONFIGURATION & IMPORTS
 # ===================================================================
 
+# ===================================================================
+# CONFIGURATION & IMPORTS
+# ===================================================================
+
+# Setup basic Streamlit config first
+import streamlit as st
+
 def get_login_status():
     """Mendapatkan status login user dari session state"""
     try:
@@ -33,11 +40,26 @@ st.set_page_config(
     initial_sidebar_state="expanded" if logged_in else "collapsed"
 )
 
-# Import modul aplikasi
-from ui.auth import auth
-from ui.tools.Dashboard_Ringkasan import render_dashboard
-from ui.tools.Analisis_Data import render_data_analysis
-from ui.tools.Prediksi_Sentimen import render_sentiment_prediction
+# Lazy imports - hanya import ketika diperlukan
+def get_auth_module():
+    """Lazy import untuk modul auth"""
+    from ui.auth import auth
+    return auth
+
+def get_dashboard_module():
+    """Lazy import untuk modul dashboard"""
+    from ui.tools.Dashboard_Ringkasan import render_dashboard
+    return render_dashboard
+
+def get_analysis_module():
+    """Lazy import untuk modul analisis"""
+    from ui.tools.Analisis_Data import render_data_analysis
+    return render_data_analysis
+
+def get_prediction_module():
+    """Lazy import untuk modul prediksi"""
+    from ui.tools.Prediksi_Sentimen import render_sentiment_prediction
+    return render_sentiment_prediction
 
 
 
@@ -54,12 +76,14 @@ def login_page():
         st.markdown('<meta http-equiv="refresh" content="0;url=/" />', unsafe_allow_html=True)
         return
     
+    auth = get_auth_module()
     auth.main()
 
 def logout_page():
     """
     Proses logout dan redirect ke halaman utama
     """
+    auth = get_auth_module()
     auth.logout()
     st.markdown(
         '<meta http-equiv="refresh" content="0;url=/?logout=1" />',
@@ -70,18 +94,21 @@ def dashboard_page():
     """
     Halaman Dashboard Ringkasan
     """
+    render_dashboard = get_dashboard_module()
     render_dashboard()
 
 def data_analysis_page():
     """
     Halaman Analisis Data
     """
+    render_data_analysis = get_analysis_module()
     render_data_analysis()
 
 def sentiment_prediction_page():
     """
     Halaman Prediksi Sentimen
     """
+    render_sentiment_prediction = get_prediction_module()
     render_sentiment_prediction()
 
 # ===================================================================
@@ -152,6 +179,7 @@ def main():
     """
     
     # Inisialisasi dan sinkronisasi session state
+    auth = get_auth_module()
     auth.sync_login_state()
     auth.initialize_session_state()
     
