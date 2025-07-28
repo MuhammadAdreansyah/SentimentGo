@@ -1,96 +1,29 @@
-# ========================================
-# SENTIMENGO - Requirements Configuration
-# ========================================
-# File ini berisi semua dependencies yang diperlukan
-# untuk menjalankan aplikasi SentimenGo
-
-# ========================================
-# CORE FRAMEWORK & WEB APP
-# ========================================
 streamlit>=1.34.0
-
-# ========================================
-# FIREBASE & AUTHENTICATION
-# ========================================
 firebase-admin>=6.5.0
 pyrebase4>=4.8.0
 python-dotenv>=1.0.1
-
-# Google Authentication
 google-auth>=2.29.0
 google-auth-oauthlib>=1.2.0
-
-# ========================================
-# DATA PROCESSING & ANALYSIS
-# ========================================
 pandas>=2.2.2
 numpy>=1.26.4
-
-# ========================================
-# VISUALIZATION & CHARTS
-# ========================================
 matplotlib>=3.8.4
 plotly>=5.20.0
 wordcloud>=1.9.3
 networkx>=3.3
-
-# ========================================
-# NATURAL LANGUAGE PROCESSING (NLP)
-# ========================================
-# Indonesian NLP
 Sastrawi>=1.0.1
-
-# NLTK for tokenization and text processing
 nltk>=3.8.1
-
-# ========================================
-# MACHINE LEARNING & MODEL TRAINING
-# ========================================
-# Pin scikit-learn version for model compatibility
-# CRITICAL: Must match training environment to avoid model errors
 scikit-learn==1.5.0
 imbalanced-learn>=0.11.0
 joblib>=1.3.0,<1.5.0
-
-# ========================================
-# HTTP & WEB REQUESTS
-# ========================================
 httpx>=0.27.0
-
-# ========================================
-# SYSTEM & UTILITIES
-# ========================================
 psutil>=5.9.8
 typing-extensions>=4.11.0
-
-# ========================================
-# STREAMLIT EXTENSIONS & UI
-# ========================================
-# Cookie and session management
 streamlit-cookies-controller>=0.0.1
-
-# File upload compatibility
 openpyxl>=3.1.2
-
-# ========================================
-# DEVELOPMENT & RESEARCH TOOLS
-# ========================================
-# For data collection in notebooks (optional)
-google-play-scraper>=1.2.7
-
-# Data visualization in notebooks
 seaborn>=0.12.0
-
-# ========================================
-# BUILD & COMPATIBILITY
-# ========================================
 setuptools>=65.0,<81
 wheel>=0.38.0
 packaging>=21.0
-
-# ========================================
-# DEPRECATED/UNUSED DEPENDENCIES
-# ========================================
-# Packages that might not be needed but kept for compatibility
-# uuid>=1.30  # Built-in Python module, not needed
-# st-cookie>=0.0.8  # Replaced by streamlit-cookies-controller 
+uuid>=1.30  # Built-in Python module, not needed
+st-cookie>=0.0.8  # Replaced by streamlit-cookies-controller 
+# google-play-scraper>=1.2.7
