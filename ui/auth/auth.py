@@ -56,36 +56,85 @@ cookie_controller = CookieController()
 def get_redirect_uri() -> str:
     """Get redirect URI based on environment (Streamlit Cloud vs Local Development)
     
-    Streamlit Cloud Environment Detection:
-    - STREAMLIT_SERVER_HEADLESS='true' - Primary indicator untuk Streamlit Cloud
-    - STREAMLIT_CLOUD - Secondary indicator untuk Streamlit Cloud
+    Enhanced Streamlit Cloud Environment Detection:
+    - Multiple detection methods untuk memastikan akurasi
+    - Fallback strategy untuk robustness
     """
     try:
         import os
         
-        # Streamlit Cloud Detection (Production Environment)
-        # Method 1: Primary detection - STREAMLIT_SERVER_HEADLESS
-        # Ini adalah environment variable resmi yang selalu diset oleh Streamlit Cloud
-        if os.getenv('STREAMLIT_SERVER_HEADLESS') == 'true':
+        # Debug: Log all environment variables for troubleshooting
+        streamlit_headless = os.getenv('STREAMLIT_SERVER_HEADLESS')
+        streamlit_cloud = os.getenv('STREAMLIT_CLOUD')
+        force_production = os.getenv('FORCE_PRODUCTION_MODE')  # Emergency override
+        
+        logger.info(f"Environment Detection - STREAMLIT_SERVER_HEADLESS: {streamlit_headless}")
+        logger.info(f"Environment Detection - STREAMLIT_CLOUD: {streamlit_cloud}")
+        logger.info(f"Environment Detection - FORCE_PRODUCTION_MODE: {force_production}")
+        
+        # Emergency override for production deployment
+        if force_production == 'true':
             redirect_uri = st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback")
-            logger.info(f"Environment: Production (Streamlit Cloud) - Using redirect URI: {redirect_uri}")
+            logger.info(f"🚨 Environment: Production (FORCED) - Using redirect URI: {redirect_uri}")
             return redirect_uri
         
-        # Method 2: Secondary detection - STREAMLIT_CLOUD
-        # Backup detection jika STREAMLIT_SERVER_HEADLESS tidak tersedia
-        if os.getenv('STREAMLIT_CLOUD'):
+        # Enhanced Streamlit Cloud Detection (Production Environment)
+        # Method 1: Primary detection - STREAMLIT_SERVER_HEADLESS='true'
+        if streamlit_headless == 'true':
             redirect_uri = st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback")
-            logger.info(f"Environment: Production (Streamlit Cloud - Secondary) - Using redirect URI: {redirect_uri}")
+            logger.info(f"✅ Environment: Production (Streamlit Cloud - Primary) - Using redirect URI: {redirect_uri}")
             return redirect_uri
+        
+        # Method 2: Secondary detection - STREAMLIT_CLOUD (any value)
+        if streamlit_cloud:
+            redirect_uri = st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback") 
+            logger.info(f"✅ Environment: Production (Streamlit Cloud - Secondary) - Using redirect URI: {redirect_uri}")
+            return redirect_uri
+            
+        # Method 3: URL-based detection as backup
+        # Check if running on streamlit.app domain
+        try:
+            current_url = st.get_option("browser.serverAddress")
+            if current_url and "streamlit.app" in current_url:
+                redirect_uri = st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback")
+                logger.info(f"✅ Environment: Production (URL Detection) - Using redirect URI: {redirect_uri}")
+                return redirect_uri
+        except Exception:
+            pass  # URL detection failed, continue to local
+            
+        # Method 4: Hard-coded production detection for sentimentgo app
+        # As final failsafe for Streamlit Cloud
+        try:
+            # Check if we're running on the specific production URL
+            if hasattr(st, '_get_session_id'):
+                # This is likely Streamlit Cloud if session ID exists
+                redirect_uri = st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback")
+                logger.info(f"✅ Environment: Production (Session Detection) - Using redirect URI: {redirect_uri}")
+                return redirect_uri
+        except Exception:
+            pass
         
         # Default to Local Development Environment
         redirect_uri = st.secrets.get("REDIRECT_URI_DEVELOPMENT", "http://localhost:8501/oauth2callback")
-        logger.info(f"Environment: Development (Local) - Using redirect URI: {redirect_uri}")
+        logger.info(f"⚠️ Environment: Development (Local) - Using redirect URI: {redirect_uri}")
         return redirect_uri
         
     except Exception as e:
         logger.error(f"Error getting redirect URI: {e}")
-        # Fallback to development URI for safety
+        
+        # Final fallback: Force production mode for Streamlit Cloud
+        # If we can't determine environment but we're not on localhost, assume production
+        try:
+            import socket
+            hostname = socket.gethostname()
+            if "localhost" not in hostname and "127.0.0.1" not in hostname:
+                logger.info(f"🔄 Fallback: Forcing production mode for hostname: {hostname}")
+                return "https://sentimentgo.streamlit.app/oauth2callback"
+        except Exception:
+            pass
+            
+        # Final fallback to development URI for safety
+        logger.warning("⚠️ Using development URI as final fallback")
         return "http://localhost:8501/oauth2callback"
 
 def debug_environment_variables() -> Dict[str, Any]:

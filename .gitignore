@@ -12,6 +12,7 @@
 config/client_secret_*.json
 config/*firebase*.json
 config/service_account.json
+config/STREAMLIT_CLOUD_SECRETS.txt
 
 # Environment variables
 .env

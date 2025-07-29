@@ -21,10 +21,14 @@ import time
 import base64
 import traceback
 import pickle
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any, Union
 from collections import Counter
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 # Suppress warnings
 warnings.filterwarnings('ignore', message='pkg_resources is deprecated as an API')
@@ -868,28 +872,42 @@ def load_prediction_model(model_dir: str = "models") -> Tuple[Any, Any]:
                 # Load with error handling for version compatibility
                 try:
                     svm_model = joblib.load(model_path)
+                    logger.info("✅ SVM model loaded successfully")
                 except Exception as load_error:
-                    st.error(f"Failed to load SVM model: {str(load_error)}")
+                    logger.error(f"❌ Failed to load SVM model: {str(load_error)}")
+                    # Check if it's sklearn version mismatch
+                    if "_safe_tags" in str(load_error) or "sklearn" in str(load_error):
+                        logger.info("🔄 sklearn version mismatch detected - triggering auto-retrain")
+                        return None, None
+                    
                     # Try alternative loading method
                     try:
                         import pickle
                         with open(model_path, 'rb') as f:
                             svm_model = pickle.load(f)
+                        logger.info("✅ SVM model loaded with pickle fallback")
                     except Exception as pickle_error:
-                        st.error(f"Alternative loading also failed: {str(pickle_error)}")
+                        logger.error(f"❌ Alternative loading also failed: {str(pickle_error)}")
                         return None, None
                 
                 try:
                     tfidf_vectorizer = joblib.load(vectorizer_path)
+                    logger.info("✅ TF-IDF vectorizer loaded successfully")
                 except Exception as load_error:
-                    st.error(f"Failed to load TF-IDF vectorizer: {str(load_error)}")
+                    logger.error(f"❌ Failed to load TF-IDF vectorizer: {str(load_error)}")
+                    # Check if it's sklearn version mismatch
+                    if "_safe_tags" in str(load_error) or "sklearn" in str(load_error):
+                        logger.info("🔄 sklearn version mismatch detected - triggering auto-retrain")
+                        return None, None
+                    
                     # Try alternative loading method
                     try:
                         import pickle
                         with open(vectorizer_path, 'rb') as f:
                             tfidf_vectorizer = pickle.load(f)
+                        logger.info("✅ TF-IDF vectorizer loaded with pickle fallback")
                     except Exception as pickle_error:
-                        st.error(f"Alternative vectorizer loading failed: {str(pickle_error)}")
+                        logger.error(f"❌ Alternative vectorizer loading failed: {str(pickle_error)}")
                         return None, None
                 
                 # Validate models functionality
@@ -938,6 +956,7 @@ def load_prediction_model(model_dir: str = "models") -> Tuple[Any, Any]:
 def check_sklearn_version_compatibility() -> bool:
     """
     Check if current sklearn version is compatible with saved models.
+    Enhanced version for production stability.
     
     Returns:
         True if compatible, False otherwise
@@ -947,14 +966,27 @@ def check_sklearn_version_compatibility() -> bool:
         version = sklearn.__version__
         major, minor, patch = map(int, version.split('.'))
         
-        # Compatible versions: 1.3.x to 1.5.x
-        if major == 1 and 3 <= minor <= 5:
+        # Strict compatibility check for production
+        # Compatible versions: 1.4.x to 1.5.x (tested and stable)
+        if major == 1 and 4 <= minor <= 5:
+            logger.info(f"✅ sklearn version {version} is fully compatible")
+            return True
+        elif major == 1 and minor == 3:
+            logger.warning(f"⚠️ sklearn version {version} is compatible but outdated")
             return True
         else:
-            st.warning(f"⚠️ sklearn version {version} may have compatibility issues")
+            logger.error(f"❌ sklearn version {version} is not compatible. Required: 1.4.x-1.5.x")
+            st.error(f"""
+            🚨 **sklearn Version Compatibility Issue**
+            
+            Current version: **{version}**
+            Required version: **1.4.x - 1.5.x**
+            
+            Please update your requirements.txt or retrain models.
+            """)
             return False
     except Exception as e:
-        st.error(f"Error checking sklearn version: {str(e)}")
+        logger.error(f"Error checking sklearn version: {str(e)}")
         return False
 
 
