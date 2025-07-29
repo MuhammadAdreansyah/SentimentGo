@@ -53,6 +53,37 @@ LAST_EMAIL_DURATION = 90 * 24 * 60 * 60  # 90 days
 # Initialize cookie controller
 cookie_controller = CookieController()
 
+def get_redirect_uri() -> str:
+    """Get redirect URI based on environment (production vs development)"""
+    try:
+        # Simple environment detection
+        # Check if running on Streamlit Cloud (production)
+        import os
+        
+        # Method 1: Check for Streamlit Cloud environment variables
+        if os.getenv('STREAMLIT_SERVER_HEADLESS') == 'true':
+            redirect_uri = st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback")
+            logger.info(f"Environment: Production (Streamlit Cloud) - Using redirect URI: {redirect_uri}")
+            return redirect_uri
+        
+        # Method 2: Check for other cloud platform indicators
+        cloud_indicators = ['STREAMLIT_CLOUD', 'DYNO', 'RENDER_SERVICE_ID', 'VERCEL', 'NETLIFY']
+        for indicator in cloud_indicators:
+            if os.getenv(indicator):
+                redirect_uri = st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback")
+                logger.info(f"Environment: Production ({indicator}) - Using redirect URI: {redirect_uri}")
+                return redirect_uri
+        
+        # Default to development (localhost)
+        redirect_uri = st.secrets.get("REDIRECT_URI_DEVELOPMENT", "http://localhost:8501/oauth2callback")
+        logger.info(f"Environment: Development (Local) - Using redirect URI: {redirect_uri}")
+        return redirect_uri
+        
+    except Exception as e:
+        logger.error(f"Error getting redirect URI: {e}")
+        # Fallback to development URI for safety
+        return "http://localhost:8501/oauth2callback"
+
 def get_firebase_config() -> Dict[str, Any]:
     """Dapatkan konfigurasi Firebase yang terstruktur"""
     try:
@@ -78,7 +109,7 @@ def is_config_valid() -> bool:
     return bool(
         st.secrets.get("GOOGLE_CLIENT_ID") and 
         st.secrets.get("GOOGLE_CLIENT_SECRET") and 
-        st.secrets.get("REDIRECT_URI") and 
+        (st.secrets.get("REDIRECT_URI_PRODUCTION") or st.secrets.get("REDIRECT_URI_DEVELOPMENT")) and 
         st.secrets.get("FIREBASE_API_KEY")
     )
 
@@ -525,7 +556,7 @@ def get_google_authorization_url() -> str:
     base_url = 'https://accounts.google.com/o/oauth2/v2/auth'
     params = {
         'client_id': st.secrets.get("GOOGLE_CLIENT_ID", ""),
-        'redirect_uri': st.secrets.get("REDIRECT_URI", ""),
+        'redirect_uri': get_redirect_uri(),
         'response_type': 'code',
         'scope': 'openid email profile',
         'access_type': 'offline',
@@ -542,7 +573,7 @@ async def exchange_google_token(code: str) -> Tuple[Optional[str], Optional[Dict
             'client_secret': st.secrets.get("GOOGLE_CLIENT_SECRET", ""),
             'code': code,
             'grant_type': 'authorization_code',
-            'redirect_uri': st.secrets.get("REDIRECT_URI", "")
+            'redirect_uri': get_redirect_uri()
         }
 
         try:
