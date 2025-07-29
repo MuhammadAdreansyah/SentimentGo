@@ -54,27 +54,31 @@ LAST_EMAIL_DURATION = 90 * 24 * 60 * 60  # 90 days
 cookie_controller = CookieController()
 
 def get_redirect_uri() -> str:
-    """Get redirect URI based on environment (production vs development)"""
+    """Get redirect URI based on environment (Streamlit Cloud vs Local Development)
+    
+    Streamlit Cloud Environment Detection:
+    - STREAMLIT_SERVER_HEADLESS='true' - Primary indicator untuk Streamlit Cloud
+    - STREAMLIT_CLOUD - Secondary indicator untuk Streamlit Cloud
+    """
     try:
-        # Simple environment detection
-        # Check if running on Streamlit Cloud (production)
         import os
         
-        # Method 1: Check for Streamlit Cloud environment variables
+        # Streamlit Cloud Detection (Production Environment)
+        # Method 1: Primary detection - STREAMLIT_SERVER_HEADLESS
+        # Ini adalah environment variable resmi yang selalu diset oleh Streamlit Cloud
         if os.getenv('STREAMLIT_SERVER_HEADLESS') == 'true':
             redirect_uri = st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback")
             logger.info(f"Environment: Production (Streamlit Cloud) - Using redirect URI: {redirect_uri}")
             return redirect_uri
         
-        # Method 2: Check for other cloud platform indicators
-        cloud_indicators = ['STREAMLIT_CLOUD', 'DYNO', 'RENDER_SERVICE_ID', 'VERCEL', 'NETLIFY']
-        for indicator in cloud_indicators:
-            if os.getenv(indicator):
-                redirect_uri = st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback")
-                logger.info(f"Environment: Production ({indicator}) - Using redirect URI: {redirect_uri}")
-                return redirect_uri
+        # Method 2: Secondary detection - STREAMLIT_CLOUD
+        # Backup detection jika STREAMLIT_SERVER_HEADLESS tidak tersedia
+        if os.getenv('STREAMLIT_CLOUD'):
+            redirect_uri = st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback")
+            logger.info(f"Environment: Production (Streamlit Cloud - Secondary) - Using redirect URI: {redirect_uri}")
+            return redirect_uri
         
-        # Default to development (localhost)
+        # Default to Local Development Environment
         redirect_uri = st.secrets.get("REDIRECT_URI_DEVELOPMENT", "http://localhost:8501/oauth2callback")
         logger.info(f"Environment: Development (Local) - Using redirect URI: {redirect_uri}")
         return redirect_uri
@@ -83,6 +87,61 @@ def get_redirect_uri() -> str:
         logger.error(f"Error getting redirect URI: {e}")
         # Fallback to development URI for safety
         return "http://localhost:8501/oauth2callback"
+
+def debug_environment_variables() -> Dict[str, Any]:
+    """Debug function untuk melihat environment variables Streamlit Cloud
+    
+    Returns:
+        Dict berisi informasi environment variables yang relevan untuk Streamlit Cloud
+    """
+    import os
+    
+    debug_info = {
+        "detected_platform": "unknown",
+        "environment_variables": {},
+        "redirect_uri": None
+    }
+    
+    # Streamlit Cloud specific environment variables
+    streamlit_env_vars = [
+        'STREAMLIT_SERVER_HEADLESS',  # Primary indicator
+        'STREAMLIT_CLOUD',            # Secondary indicator
+        'STREAMLIT_SERVER_PORT',      # Port information
+        'STREAMLIT_BROWSER_GATHER_USAGE_STATS',  # Usage stats setting
+    ]
+    
+    # Collect Streamlit-specific environment variables
+    for var in streamlit_env_vars:
+        value = os.getenv(var)
+        if value is not None:  # Include even if empty string
+            debug_info["environment_variables"][var] = value
+    
+    # Determine platform specifically for Streamlit Cloud
+    if os.getenv('STREAMLIT_SERVER_HEADLESS') == 'true':
+        debug_info["detected_platform"] = "Streamlit Cloud (Primary Detection)"
+    elif os.getenv('STREAMLIT_CLOUD'):
+        debug_info["detected_platform"] = "Streamlit Cloud (Secondary Detection)"
+    else:
+        debug_info["detected_platform"] = "Local Development"
+    
+    # Get redirect URI
+    debug_info["redirect_uri"] = get_redirect_uri()
+    
+    # Add deployment info for Streamlit Cloud
+    if debug_info["detected_platform"].startswith("Streamlit Cloud"):
+        debug_info["deployment_info"] = {
+            "app_url": "https://sentimentgo.streamlit.app",
+            "oauth_callback": "https://sentimentgo.streamlit.app/oauth2callback",
+            "environment": "production"
+        }
+    else:
+        debug_info["deployment_info"] = {
+            "app_url": "http://localhost:8501",
+            "oauth_callback": "http://localhost:8501/oauth2callback",
+            "environment": "development"
+        }
+    
+    return debug_info
 
 def get_firebase_config() -> Dict[str, Any]:
     """Dapatkan konfigurasi Firebase yang terstruktur"""
