@@ -71,6 +71,13 @@ def get_redirect_uri() -> str:
         logger.info(f"🔍 Environment Detection - STREAMLIT_SERVER_HEADLESS: {streamlit_headless}")
         logger.info(f"🔍 Environment Detection - STREAMLIT_CLOUD: {streamlit_cloud}")
         
+        # Emergency override - ONLY for Streamlit Cloud if auto-detection fails
+        cloud_override = st.secrets.get("STREAMLIT_CLOUD_OVERRIDE")
+        if cloud_override == "true":
+            redirect_uri = st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback")
+            logger.info(f"🚨 Environment: STREAMLIT CLOUD (MANUAL OVERRIDE) - Using: {redirect_uri}")
+            return redirect_uri
+        
         # Method 1: RELIABLE Streamlit Cloud Detection
         # STREAMLIT_SERVER_HEADLESS is set to 'true' ONLY in Streamlit Cloud
         if streamlit_headless == 'true':
@@ -85,35 +92,47 @@ def get_redirect_uri() -> str:
             logger.info(f"☁️ Environment: STREAMLIT CLOUD (Cloud Env) - Using: {redirect_uri}")
             return redirect_uri
             
-        # Method 3: URL-based detection as additional verification
-        # Check if running on streamlit.app domain
+        # Method 3: URL/Domain-based detection - ENHANCED for Streamlit Cloud
+        # Check if running on streamlit.app domain by examining the current context
         try:
-            # Try to get current URL from Streamlit context
-            if hasattr(st, 'get_option'):
-                try:
-                    server_address = st.get_option("browser.serverAddress")
-                    if server_address and "streamlit.app" in str(server_address):
-                        redirect_uri = st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback")
-                        logger.info(f"☁️ Environment: STREAMLIT CLOUD (URL Detection) - Using: {redirect_uri}")
-                        return redirect_uri
-                except:
-                    pass
+            # Check system environment for cloud indicators
+            import sys
+            python_path = sys.executable
             
-            # Check if we can detect from session context
-            if hasattr(st, 'session_state') and hasattr(st.session_state, 'get'):
-                # In Streamlit Cloud, certain session properties exist
-                pass
+            # Streamlit Cloud has specific Python path patterns
+            if "/mount/src" in python_path or "streamlit_cloud" in python_path.lower():
+                redirect_uri = st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback")
+                logger.info(f"☁️ Environment: STREAMLIT CLOUD (Python Path Detection) - Using: {redirect_uri}")
+                return redirect_uri
                 
         except Exception as e:
-            logger.debug(f"URL detection failed: {e}")
+            logger.debug(f"Python path detection failed: {e}")
             
-        # Method 4: Port-based detection for local development
-        # Local development typically runs on port 8501
+        # Method 4: Check platform and hostname patterns for cloud detection
+        try:
+            import platform
+            
+            # Check hostname patterns
+            hostname = platform.node()
+            logger.debug(f"System hostname: {hostname}")
+            
+            # Cloud hostnames are usually not localhost and have specific patterns
+            if hostname and not hostname.startswith('localhost') and not hostname.startswith('127.0.0.1'):
+                # Additional check - if hostname looks like cloud infrastructure
+                if len(hostname) > 8 and ('-' in hostname or hostname.isalnum()):
+                    redirect_uri = st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback")
+                    logger.info(f"☁️ Environment: STREAMLIT CLOUD (Hostname Pattern: {hostname}) - Using: {redirect_uri}")
+                    return redirect_uri
+                    
+        except Exception as e:
+            logger.debug(f"Platform detection failed: {e}")
+            
+        # Method 5: Port-based detection for local development confirmation
         try:
             import socket
             hostname = socket.gethostname()
             
-            # If we're on localhost/127.0.0.1, it's definitely local
+            # If we're explicitly on localhost/127.0.0.1, it's definitely local
             if hostname in ['localhost', '127.0.0.1'] or hostname.startswith('localhost'):
                 redirect_uri = st.secrets.get("REDIRECT_URI_DEVELOPMENT", "http://localhost:8501/oauth2callback")
                 logger.info(f"💻 Environment: LOCAL DEVELOPMENT (Hostname: {hostname}) - Using: {redirect_uri}")
@@ -121,27 +140,18 @@ def get_redirect_uri() -> str:
         except Exception as hostname_error:
             logger.debug(f"Hostname detection failed: {hostname_error}")
         
-        # DEFAULT: Assume local development if no cloud indicators found
-        redirect_uri = st.secrets.get("REDIRECT_URI_DEVELOPMENT", "http://localhost:8501/oauth2callback")
-        logger.info(f"💻 Environment: LOCAL DEVELOPMENT (Default) - Using: {redirect_uri}")
+        # DEFAULT: If we reach here and no local indicators found, assume production
+        # This is safer for deployment as it prevents OAuth redirect errors
+        redirect_uri = st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback")
+        logger.info(f"☁️ Environment: STREAMLIT CLOUD (Default/Fallback) - Using: {redirect_uri}")
         return redirect_uri
         
     except Exception as main_error:
         logger.error(f"❌ Environment detection failed: {main_error}")
         
-        # Additional fallback: Try hostname-based detection
-        try:
-            import socket
-            hostname = socket.gethostname()
-            if "localhost" not in hostname and "127.0.0.1" not in hostname:
-                logger.info(f"🔄 Fallback: Using production mode for hostname: {hostname}")
-                return st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback")
-        except Exception as hostname_error:
-            logger.debug(f"Hostname fallback failed: {hostname_error}")
-            
-        # Final emergency fallback - assume local development for safety
-        redirect_uri = st.secrets.get("REDIRECT_URI_DEVELOPMENT", "http://localhost:8501/oauth2callback")
-        logger.warning("⚠️ Using development URI as final emergency fallback")
+        # Emergency fallback - assume production for safety in cloud deployment
+        redirect_uri = st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback")
+        logger.warning(f"⚠️ Using production URI as emergency fallback: {redirect_uri}")
         return redirect_uri
         return "http://localhost:8501/oauth2callback"
 
