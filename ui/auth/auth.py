@@ -17,6 +17,7 @@ Last Modified: 2025-07-06
 
 import streamlit as st
 import re
+import os
 import asyncio
 import httpx
 import time
@@ -53,39 +54,63 @@ LAST_EMAIL_DURATION = 90 * 24 * 60 * 60  # 90 days
 # Initialize cookie controller
 cookie_controller = CookieController()
 
+def detect_environment() -> Tuple[bool, str]:
+    """Detect if running on Streamlit Cloud or local development
+    
+    Returns:
+        Tuple[bool, str]: (is_streamlit_cloud, environment_description)
+    """
+    # Method 1: Primary detection - STREAMLIT_SERVER_HEADLESS
+    if os.getenv('STREAMLIT_SERVER_HEADLESS') == 'true':
+        return True, "Streamlit Cloud (HEADLESS=true)"
+    
+    # Method 2: Secondary detection - STREAMLIT_CLOUD variable
+    if os.getenv('STREAMLIT_CLOUD'):
+        return True, "Streamlit Cloud (CLOUD_VAR=true)"
+    
+    # Method 3: Port-based detection
+    server_port = os.getenv('STREAMLIT_SERVER_PORT', '8501')
+    if server_port != '8501':
+        return True, f"Streamlit Cloud (PORT={server_port})"
+    
+    # Method 4: Host-based detection
+    host = os.getenv('HOST', '').lower()
+    if 'streamlit.app' in host:
+        return True, f"Streamlit Cloud (HOST={host})"
+    
+    # Method 5: Browser gather stats (Streamlit Cloud specific)
+    if os.getenv('STREAMLIT_BROWSER_GATHER_USAGE_STATS') == 'false':
+        return True, "Streamlit Cloud (STATS=false)"
+    
+    # Default: Local development
+    return False, "Local Development"
+
 def get_redirect_uri() -> str:
     """Get redirect URI based on environment (Streamlit Cloud vs Local Development)
     
-    Streamlit Cloud Environment Detection:
-    - STREAMLIT_SERVER_HEADLESS='true' - Primary indicator untuk Streamlit Cloud
-    - STREAMLIT_CLOUD - Secondary indicator untuk Streamlit Cloud
+    Uses robust environment detection to determine appropriate redirect URI
     """
     try:
-        import os
+        is_cloud, env_desc = detect_environment()
         
-        # Streamlit Cloud Detection (Production Environment)
-        # Method 1: Primary detection - STREAMLIT_SERVER_HEADLESS
-        # Ini adalah environment variable resmi yang selalu diset oleh Streamlit Cloud
-        if os.getenv('STREAMLIT_SERVER_HEADLESS') == 'true':
+        if is_cloud:
             redirect_uri = st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback")
-            logger.info(f"Environment: Production (Streamlit Cloud) - Using redirect URI: {redirect_uri}")
+            logger.info(f"Environment: {env_desc} - Using redirect URI: {redirect_uri}")
             return redirect_uri
-        
-        # Method 2: Secondary detection - STREAMLIT_CLOUD
-        # Backup detection jika STREAMLIT_SERVER_HEADLESS tidak tersedia
-        if os.getenv('STREAMLIT_CLOUD'):
-            redirect_uri = st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback")
-            logger.info(f"Environment: Production (Streamlit Cloud - Secondary) - Using redirect URI: {redirect_uri}")
+        else:
+            redirect_uri = st.secrets.get("REDIRECT_URI_DEVELOPMENT", "http://localhost:8501/oauth2callback")
+            logger.info(f"Environment: {env_desc} - Using redirect URI: {redirect_uri}")
             return redirect_uri
-        
-        # Default to Local Development Environment
-        redirect_uri = st.secrets.get("REDIRECT_URI_DEVELOPMENT", "http://localhost:8501/oauth2callback")
-        logger.info(f"Environment: Development (Local) - Using redirect URI: {redirect_uri}")
-        return redirect_uri
         
     except Exception as e:
         logger.error(f"Error getting redirect URI: {e}")
-        # Fallback to development URI for safety
+        # Fallback: Try to detect cloud environment one more time
+        try:
+            is_cloud, _ = detect_environment()
+            if is_cloud:
+                return st.secrets.get("REDIRECT_URI_PRODUCTION", "https://sentimentgo.streamlit.app/oauth2callback")
+        except:
+            pass
         return "http://localhost:8501/oauth2callback"
 
 def debug_environment_variables() -> Dict[str, Any]:
@@ -94,20 +119,20 @@ def debug_environment_variables() -> Dict[str, Any]:
     Returns:
         Dict berisi informasi environment variables yang relevan untuk Streamlit Cloud
     """
-    import os
-    
     debug_info = {
         "detected_platform": "unknown",
         "environment_variables": {},
-        "redirect_uri": None
+        "redirect_uri": None,
+        "detection_methods": {}
     }
     
     # Streamlit Cloud specific environment variables
     streamlit_env_vars = [
-        'STREAMLIT_SERVER_HEADLESS',  # Primary indicator
-        'STREAMLIT_CLOUD',            # Secondary indicator
-        'STREAMLIT_SERVER_PORT',      # Port information
+        'STREAMLIT_SERVER_HEADLESS',        # Primary indicator
+        'STREAMLIT_CLOUD',                  # Secondary indicator
+        'STREAMLIT_SERVER_PORT',           # Port information
         'STREAMLIT_BROWSER_GATHER_USAGE_STATS',  # Usage stats setting
+        'HOST',                            # Host information
     ]
     
     # Collect Streamlit-specific environment variables
@@ -116,19 +141,16 @@ def debug_environment_variables() -> Dict[str, Any]:
         if value is not None:  # Include even if empty string
             debug_info["environment_variables"][var] = value
     
-    # Determine platform specifically for Streamlit Cloud
-    if os.getenv('STREAMLIT_SERVER_HEADLESS') == 'true':
-        debug_info["detected_platform"] = "Streamlit Cloud (Primary Detection)"
-    elif os.getenv('STREAMLIT_CLOUD'):
-        debug_info["detected_platform"] = "Streamlit Cloud (Secondary Detection)"
-    else:
-        debug_info["detected_platform"] = "Local Development"
+    # Use the robust detection function
+    is_cloud, env_desc = detect_environment()
+    debug_info["detected_platform"] = env_desc
+    debug_info["is_streamlit_cloud"] = is_cloud
     
     # Get redirect URI
     debug_info["redirect_uri"] = get_redirect_uri()
     
-    # Add deployment info for Streamlit Cloud
-    if debug_info["detected_platform"].startswith("Streamlit Cloud"):
+    # Add deployment info
+    if is_cloud:
         debug_info["deployment_info"] = {
             "app_url": "https://sentimentgo.streamlit.app",
             "oauth_callback": "https://sentimentgo.streamlit.app/oauth2callback",
@@ -140,6 +162,15 @@ def debug_environment_variables() -> Dict[str, Any]:
             "oauth_callback": "http://localhost:8501/oauth2callback",
             "environment": "development"
         }
+    
+    # Add detection method results
+    debug_info["detection_methods"] = {
+        "headless_check": os.getenv('STREAMLIT_SERVER_HEADLESS') == 'true',
+        "cloud_var_check": bool(os.getenv('STREAMLIT_CLOUD')),
+        "port_check": os.getenv('STREAMLIT_SERVER_PORT', '8501') != '8501',
+        "host_check": 'streamlit.app' in os.getenv('HOST', '').lower(),
+        "stats_check": os.getenv('STREAMLIT_BROWSER_GATHER_USAGE_STATS') == 'false'
+    }
     
     return debug_info
 
@@ -171,6 +202,34 @@ def is_config_valid() -> bool:
         (st.secrets.get("REDIRECT_URI_PRODUCTION") or st.secrets.get("REDIRECT_URI_DEVELOPMENT")) and 
         st.secrets.get("FIREBASE_API_KEY")
     )
+
+def validate_google_oauth_config() -> Tuple[bool, str]:
+    """Validate Google OAuth configuration specifically
+    
+    Returns:
+        Tuple[bool, str]: (is_valid, error_message)
+    """
+    missing_configs = []
+    
+    if not st.secrets.get("GOOGLE_CLIENT_ID"):
+        missing_configs.append("GOOGLE_CLIENT_ID")
+    
+    if not st.secrets.get("GOOGLE_CLIENT_SECRET"):
+        missing_configs.append("GOOGLE_CLIENT_SECRET")
+    
+    # Check for appropriate redirect URI based on environment
+    is_cloud, _ = detect_environment()
+    if is_cloud:
+        if not st.secrets.get("REDIRECT_URI_PRODUCTION"):
+            missing_configs.append("REDIRECT_URI_PRODUCTION")
+    else:
+        if not st.secrets.get("REDIRECT_URI_DEVELOPMENT"):
+            missing_configs.append("REDIRECT_URI_DEVELOPMENT")
+    
+    if missing_configs:
+        return False, f"Konfigurasi Google OAuth tidak lengkap. Hilang: {', '.join(missing_configs)}"
+    
+    return True, "Konfigurasi Google OAuth valid"
 
 def initialize_session_state() -> None:
     """Inisialisasi state sesi dengan nilai default"""
@@ -612,16 +671,37 @@ def verify_user_exists(user_email: str, firestore_client: Any) -> bool:
 
 def get_google_authorization_url() -> str:
     """Hasilkan URL otorisasi Google OAuth dengan cakupan yang diperlukan"""
-    base_url = 'https://accounts.google.com/o/oauth2/v2/auth'
-    params = {
-        'client_id': st.secrets.get("GOOGLE_CLIENT_ID", ""),
-        'redirect_uri': get_redirect_uri(),
-        'response_type': 'code',
-        'scope': 'openid email profile',
-        'access_type': 'offline',
-        'prompt': 'consent'
-    }
-    return f"{base_url}?{urlencode(params)}"
+    try:
+        base_url = 'https://accounts.google.com/o/oauth2/v2/auth'
+        redirect_uri = get_redirect_uri()
+        
+        # Log informasi untuk debugging
+        is_cloud, env_desc = detect_environment()
+        logger.info(f"Generating Google OAuth URL for {env_desc}")
+        logger.info(f"Using redirect URI: {redirect_uri}")
+        
+        params = {
+            'client_id': st.secrets.get("GOOGLE_CLIENT_ID", ""),
+            'redirect_uri': redirect_uri,
+            'response_type': 'code',
+            'scope': 'openid email profile',
+            'access_type': 'offline',
+            'prompt': 'consent',
+            'state': secrets.token_urlsafe(32)  # Add CSRF protection
+        }
+        
+        # Validate required parameters
+        if not params['client_id']:
+            raise ValueError("GOOGLE_CLIENT_ID not found in secrets")
+        
+        auth_url = f"{base_url}?{urlencode(params)}"
+        logger.info(f"Generated OAuth URL: {auth_url[:100]}...")  # Log first 100 chars for security
+        
+        return auth_url
+        
+    except Exception as e:
+        logger.error(f"Failed to generate Google authorization URL: {e}")
+        raise
 
 async def exchange_google_token(code: str) -> Tuple[Optional[str], Optional[Dict]]:
     """Tukar kode otorisasi Google untuk informasi pengguna"""
@@ -1228,6 +1308,69 @@ def display_auth_tips(auth_type: str) -> None:
             for tip in tips[auth_type]:
                 st.markdown(f"• {tip}")
 
+def inject_oauth_styles() -> None:
+    """Inject CSS styles untuk memperbaiki tampilan OAuth dan loading"""
+    st.markdown("""
+    <style>
+    /* OAuth Loading Styles */
+    .oauth-loading {
+        text-align: center;
+        padding: 20px;
+        background: linear-gradient(45deg, #f0f2f6, #ffffff);
+        border-radius: 10px;
+        border: 1px solid #e1e5e9;
+        margin: 10px 0;
+    }
+    
+    .oauth-loading p {
+        margin: 5px 0;
+        font-size: 16px;
+    }
+    
+    .oauth-loading a {
+        color: #1f77b4 !important;
+        text-decoration: underline !important;
+        font-weight: 600;
+    }
+    
+    .oauth-loading a:hover {
+        color: #0d47a1 !important;
+    }
+    
+    /* Auth divider styles */
+    .auth-divider-custom {
+        display: flex;
+        align-items: center;
+        margin: 20px 0;
+        width: 100%;
+    }
+    
+    .divider-line-custom {
+        flex: 1;
+        height: 1px;
+        background: #e1e5e9;
+    }
+    
+    .divider-text-custom {
+        margin: 0 15px;
+        color: #8e9297;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 1px;
+    }
+    
+    /* Button enhancements */
+    .stButton > button {
+        transition: all 0.3s ease;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 # =============================================================================
 # UI COMPONENTS
 # =============================================================================
@@ -1413,20 +1556,73 @@ def display_login_form(firebase_auth: Any, firestore_client: Any) -> None:
     if google_login_clicked:
         # Gunakan containers yang sudah di-allocate
         progress_container.progress(0.1)
-        message_container.caption("🔗 Mengalihkan ke Google OAuth...")
+        message_container.caption("� Memvalidasi konfigurasi...")
+        
+        # Validate Google OAuth configuration first
+        is_valid_config, config_message = validate_google_oauth_config()
+        if not is_valid_config:
+            progress_container.empty()
+            message_container.error(f"❌ {config_message}")
+            show_error_toast(config_message)
+            return
+        
+        progress_container.progress(0.3)
+        message_container.caption("�🔗 Mengalihkan ke Google OAuth...")
         try:
             google_url = get_google_authorization_url()
+            progress_container.progress(0.5)
+            message_container.caption("🔗 Membuat URL otorisasi Google...")
+            
+            # Log URL untuk debugging
+            logger.info(f"Generated Google OAuth URL: {google_url}")
+            
             progress_container.progress(0.8)
-            message_container.caption("✅ Berhasil mengalihkan ke Google...")
-            time.sleep(0.5)
-            progress_container.empty()
-            st.markdown(f'<meta http-equiv="refresh" content="0; url={google_url}">', unsafe_allow_html=True)
+            message_container.caption("✅ Berhasil membuat URL Google OAuth...")
+            
+            # Method 1: Gunakan JavaScript redirect yang lebih kompatibel dengan Streamlit Cloud
+            # Metode ini bekerja lebih baik di cloud environment
+            st.markdown(
+                f"""
+                <div class="oauth-loading">
+                    <script>
+                        // Redirect ke Google OAuth dengan delay kecil untuk memastikan UI ter-update
+                        setTimeout(function() {{
+                            window.open('{google_url}', '_self');
+                        }}, 500);
+                    </script>
+                    
+                    <p>🔄 Mengalihkan ke Google OAuth...</p>
+                    <p>Jika tidak teralihkan otomatis dalam 3 detik, 
+                       <a href="{google_url}" target="_self">klik di sini</a>
+                    </p>
+                </div>
+                """, 
+                unsafe_allow_html=True
+            )
+            
+            # Clear progress setelah 1 detik
             time.sleep(1)
+            progress_container.empty()
+            
+            # Fallback: Tampilkan link manual jika JavaScript tidak bekerja
+            with message_container.container():
+                st.success("✅ URL Google OAuth berhasil dibuat!")
+                st.info("💡 **Klik tombol di bawah ini jika tidak teralihkan otomatis:**")
+                
+                # Gunakan st.link_button sebagai fallback yang lebih reliable
+                if st.button("🔗 Buka Google OAuth", key="google_oauth_fallback", use_container_width=True):
+                    st.markdown(f'<meta http-equiv="refresh" content="0; url={google_url}">', unsafe_allow_html=True)
+                    
         except Exception as e:
             logger.error(f"Google OAuth redirect failed: {e}")
             progress_container.empty()
             message_container.error("❌ Gagal mengalihkan ke Google. Silakan coba lagi.")
             show_error_toast("❌ Gagal mengalihkan ke Google. Silakan coba lagi.")
+            
+            # Tampilkan informasi debug untuk troubleshooting
+            if st.checkbox("🔧 Tampilkan informasi debug", key="debug_oauth"):
+                debug_info = debug_environment_variables()
+                st.json(debug_info)
     
     # Tampilkan tips untuk login
     display_auth_tips("login")
@@ -1683,6 +1879,9 @@ def main() -> None:
         initialize_session_state()
         
         logger.info("Application started")
+        
+        # Inject OAuth styles untuk kompatibilitas cloud
+        inject_oauth_styles()
         
         # CSS Styles - Optimized with Layout Stability
         st.markdown("""
