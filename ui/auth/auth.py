@@ -923,8 +923,10 @@ def generate_popup_oauth_html(google_url: str) -> str:
                 oauthPopup.close();
             }}
             
-            // Wait a moment then refresh the parent page
+            // AUTO REDIRECT ke halaman tools setelah login berhasil
             setTimeout(() => {{
+                updateStatus('✅ Login sukses! Mengalihkan ke aplikasi...');
+                // Refresh halaman untuk trigger st.rerun() dan redirect ke tools
                 window.location.reload();
             }}, 2000);
         }}
@@ -1228,11 +1230,12 @@ def handle_google_login_callback() -> bool:
                         # Clear progress dan tampilkan pesan sukses
                         time.sleep(1.0)
                         progress_container.empty()
-                        message_container.success("🎉 Login Google berhasil! Selamat datang!")
-                        show_success_toast("Login Google berhasil!")
+                        message_container.success("🎉 Login Google berhasil! Mengalihkan ke dashboard...")
+                        show_success_toast("Login Google berhasil! Mengalihkan ke dashboard aplikasi...")
                         
                         time.sleep(1.0)  # Beri waktu untuk membaca pesan
                         callback_progress.empty()
+                        # AUTO REDIRECT ke halaman tools setelah login berhasil
                         st.rerun()
                         return True
                     else:
@@ -1862,7 +1865,11 @@ def display_login_form(firebase_auth: Any, firestore_client: Any) -> None:
                 result = login_user(email_clean, password, firebase_auth, firestore_client, remember, progress_container, message_container)
                 if result:
                     progress_container.empty()
-                    st.rerun()
+                    # AUTO REDIRECT ke halaman tools setelah login berhasil
+                    message_container.success("🎉 Login berhasil! Mengalihkan ke dashboard...")
+                    show_success_toast("Login berhasil! Mengalihkan ke dashboard aplikasi...")
+                    time.sleep(1)  # Beri waktu untuk melihat pesan sukses
+                    st.rerun()  # Redirect ke halaman tools
             except Exception as login_error:
                 progress_container.empty()
                 logger.error(f"Login process failed: {login_error}")
@@ -1912,66 +1919,19 @@ def display_login_form(firebase_auth: Any, firestore_client: Any) -> None:
             logger.info(f"Generated Google OAuth URL: {google_url}")
             
             progress_container.progress(0.8)
-            message_container.caption("✅ Berhasil mengalihkan ke Google...")
+            message_container.caption("🚀 Meluncurkan pop-up login...")
             
-            # Gunakan meta refresh seperti model lama
-            time.sleep(0.5)
-            progress_container.empty()
+            # ✨ SMOOTH POP-UP LAUNCH - LANGSUNG TAMPIL ✨
+            time.sleep(0.5)  # Smooth transition
+            progress_container.progress(1.0)
+            message_container.success("✅ Pop-up login siap! Klik tombol di bawah untuk masuk.")
             
-            # ✨ ADVANCED POPUP OAUTH IMPLEMENTATION - STAY IN PAGE ✨
-            # Clear progress dan switch ke mode advanced pop-up
-            time.sleep(0.8)  # Biarkan pengguna melihat progress selesai  
-            progress_container.empty()
-            message_container.empty()
-            
-            # Tampilkan divider visual
-            st.markdown("---")
-            st.markdown("### 🚀 **Advanced Login Pop-up - Stay in Page**")
-            
-            # Info banner untuk memberitahu pengguna tentang fitur advanced
-            st.success("""
-                🎯 **Teknik "Stay in Page" Aktif!**  
-                • Jendela pop-up Google akan terbuka  
-                • Halaman utama tetap terlihat  
-                • Setelah login, pop-up menutup otomatis  
-                • Anda akan langsung masuk ke dashboard
-            """)
-            
-            # Generate dan tampilkan advanced pop-up OAuth HTML
+            # Generate dan tampilkan pop-up OAuth HTML LANGSUNG
             popup_oauth_html = generate_popup_oauth_html(google_url)
-            components.html(popup_oauth_html, height=480, scrolling=True)
+            components.html(popup_oauth_html, height=420, scrolling=False)
             
-            # Panduan penggunaan pop-up
-            with st.expander("📋 **Panduan Penggunaan Advanced Pop-up Login**", expanded=False):
-                st.markdown("""
-                    **🔧 Langkah-langkah:**
-                    1. **Klik tombol "🚀 Login dengan Google"** di atas  
-                    2. **Jendela pop-up akan terbuka** - jangan tutup halaman ini  
-                    3. **Login di jendela pop-up** dengan akun Google Anda  
-                    4. **Pop-up akan menutup otomatis** setelah berhasil  
-                    5. **Anda akan langsung masuk** ke dashboard aplikasi  
-                    
-                    **⚠️ Jika pop-up diblokir:**
-                    - Browser mungkin memblokir pop-up secara otomatis  
-                    - Klik link manual yang akan muncul di atas  
-                    - Atau izinkan pop-up untuk domain ini di pengaturan browser  
-                    
-                    **💡 Tips untuk Pengalaman Terbaik:**
-                    - Pastikan pop-up blocker dinonaktifkan  
-                    - Jangan refresh halaman saat proses login  
-                    - Gunakan browser modern (Chrome, Firefox, Edge)  
-                    - Pastikan JavaScript diaktifkan
-                """)
-            
-            # Pesan debug untuk developer
-            if st.checkbox("🔧 Tampilkan Info Debug OAuth", value=False):
-                debug_info = {
-                    "Google OAuth URL": google_url,
-                    "Pop-up Blocker Status": "Akan dideteksi otomatis",
-                    "Advanced Mode": "Stay in Page - Enabled",
-                    "JavaScript Monitoring": "Active"
-                }
-                st.json(debug_info)
+            # Keep progress and message visible untuk UX yang smooth
+            show_success_toast("Pop-up login Google siap digunakan!")
             
         except Exception as e:
             logger.error(f"Google OAuth advanced pop-up failed: {e}")
