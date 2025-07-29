@@ -817,12 +817,16 @@ def handle_google_login_callback() -> bool:
                         # Clear progress dan tampilkan pesan sukses
                         time.sleep(1.0)
                         progress_container.empty()
-                        message_container.success("🎉 Login Google berhasil! Selamat datang!")
-                        show_success_toast("Login Google berhasil!")
+                        message_container.success("🎉 Login Google berhasil! Mengarahkan ke dashboard...")
+                        show_success_toast("Login Google berhasil! Mengarahkan ke dashboard...")
                         
+                        # Auto-redirect ke halaman tools setelah login berhasil
                         time.sleep(1.0)  # Beri waktu untuk membaca pesan
                         callback_progress.empty()
-                        st.rerun()
+                        st.session_state['should_redirect'] = True
+                        st.session_state['login_success'] = True  # Flag untuk menampilkan toast di main app
+                        st.query_params.clear()  # Clear OAuth params
+                        st.rerun()  # Rerun untuk trigger redirect logic
                         return True
                     else:
                         # Email belum diverifikasi untuk user non-Google
@@ -984,15 +988,21 @@ def login_user(email: str, password: str, firebase_auth: Any, firestore_client: 
         # Step 4: Complete
         progress_container.progress(1.0)
         # message_container.caption("✅ Login berhasil!")
-        message_container.success("🎉 Login berhasil! Selamat datang kembali!")
+        message_container.success("🎉 Login berhasil! Mengarahkan ke dashboard...")
         
         logger.info(f"Login successful for: {email}")
-        show_success_toast("Login berhasil! Selamat datang kembali!")
+        show_success_toast("Login berhasil! Mengarahkan ke dashboard...")
         
         # Clear progress setelah menampilkan pesan sukses, tapi biarkan message tetap
         time.sleep(1.2)  # Beri waktu untuk menampilkan progress completion
         progress_container.empty()
-        message_container.empty()
+        
+        # Auto-redirect ke halaman tools setelah login berhasil
+        st.session_state['should_redirect'] = True
+        st.session_state['login_success'] = True  # Flag untuk menampilkan toast di main app
+        time.sleep(0.5)  # Brief pause untuk user experience
+        st.rerun()  # Rerun untuk trigger redirect logic
+        
         return True
         
     except Exception as e:
@@ -1480,63 +1490,107 @@ def display_login_form(firebase_auth: Any, firestore_client: Any) -> None:
     if google_login_clicked:
         # Gunakan containers yang sudah di-allocate
         progress_container.progress(0.1)
-        message_container.caption("🔗 Mengalihkan ke Google OAuth...")
+        message_container.caption("🔗 Membuka pop-up Google OAuth...")
         
         try:
             google_url = get_google_authorization_url()
             progress_container.progress(0.5)
             
-            # Smart redirect based on environment
-            redirect_uri = get_redirect_uri()
-            
-            # If it's Streamlit Cloud (production), use JavaScript window.open approach
-            if "sentimentgo.streamlit.app" in redirect_uri:
-                progress_container.progress(0.8)
-                message_container.info("🔐 Opening Google login in new window...")
-                
-                # JavaScript approach for Streamlit Cloud
-                st.markdown(f"""
+            # Advanced Pop-up Authentication - Stay in Page Technique
+            st.markdown(f"""
                 <script>
-                    // Open Google OAuth in new window for Streamlit Cloud
-                    window.open('{google_url}', 'google_oauth', 'width=500,height=600,scrollbars=yes,resizable=yes');
+                    // Advanced Pop-up Authentication Handler
+                    function openGoogleAuthPopup() {{
+                        const popup = window.open(
+                            '{google_url}',
+                            'GoogleAuth',
+                            'width=500,height=650,scrollbars=yes,resizable=yes,status=yes,location=yes,toolbar=no,menubar=no,left=' + 
+                            (screen.width/2 - 250) + ',top=' + (screen.height/2 - 325)
+                        );
+                        
+                        // Monitor popup untuk auto-close dan callback handling
+                        const checkClosed = setInterval(() => {{
+                            try {{
+                                // Check if popup is closed
+                                if (popup.closed) {{
+                                    clearInterval(checkClosed);
+                                    // Refresh halaman utama untuk sync state dan redirect
+                                    setTimeout(() => {{
+                                        window.location.reload();
+                                    }}, 500);
+                                }}
+                                // Try to detect successful authentication
+                                if (popup.location.href.includes('oauth2callback')) {{
+                                    clearInterval(checkClosed);
+                                    popup.close();
+                                    // Show success message and reload
+                                    alert('✅ Login berhasil! Mengarahkan ke dashboard...');
+                                    setTimeout(() => {{
+                                        window.location.reload();
+                                    }}, 1000);
+                                }}
+                            }} catch(e) {{
+                                // Cross-origin access blocked - normal behavior
+                            }}
+                        }}, 1000);
+                        
+                        // Timeout protection (5 menit)
+                        setTimeout(() => {{
+                            if (!popup.closed) {{
+                                popup.close();
+                                clearInterval(checkClosed);
+                                alert('⏰ Login timeout. Silakan coba lagi.');
+                            }}
+                        }}, 300000);
+                        
+                        // Focus popup window
+                        popup.focus();
+                    }}
                     
-                    // Show instructions to user
-                    setTimeout(function() {{
-                        alert('Please complete login in the popup window. If popup is blocked, copy this URL: {google_url}');
-                    }}, 1000);
+                    // Execute popup immediately
+                    openGoogleAuthPopup();
                 </script>
                 
-                <div style="padding: 15px; background-color: #e3f2fd; border-radius: 5px; margin: 10px 0;">
-                    <h4>🔐 Google OAuth Login</h4>
-                    <p>A popup window should open for Google login.</p>
-                    <p><strong>If popup is blocked:</strong></p>
-                    <a href="{google_url}" target="_blank" style="
-                        background-color: #4285f4; 
-                        color: white; 
-                        padding: 10px 20px; 
-                        text-decoration: none; 
-                        border-radius: 5px; 
-                        display: inline-block;
-                        margin: 5px 0;
-                    ">🚀 Click here to login with Google</a>
+                <div style="padding: 15px; background-color: #e8f5e8; border-radius: 8px; margin: 10px 0; border-left: 4px solid #4caf50;">
+                    <h4 style="margin: 0 0 10px 0; color: #2e7d32;">🔐 Google OAuth Login</h4>
+                    <p style="margin: 5px 0;">Pop-up jendela login Google telah dibuka.</p>
+                    <p style="margin: 5px 0; font-size: 0.9em; color: #666;">
+                        <strong>Petunjuk:</strong><br>
+                        • Login di jendela pop-up yang muncul<br>
+                        • Jendela akan otomatis tertutup setelah login berhasil<br>
+                        • Anda akan diarahkan ke dashboard secara otomatis
+                    </p>
+                    <p style="margin: 10px 0 0 0; font-size: 0.85em; color: #888;">
+                        <em>Jika pop-up terblokir browser, aktifkan pop-up untuk situs ini atau gunakan link manual di bawah.</em>
+                    </p>
+                    <details style="margin-top: 10px;">
+                        <summary style="cursor: pointer; color: #1976d2;">Manual Login Link</summary>
+                        <a href="{google_url}" target="_blank" style="
+                            background-color: #4285f4; 
+                            color: white; 
+                            padding: 8px 16px; 
+                            text-decoration: none; 
+                            border-radius: 5px; 
+                            display: inline-block;
+                            margin: 10px 0;
+                            font-size: 0.9em;
+                        ">🚀 Login dengan Google (Tab Baru)</a>
+                    </details>
                 </div>
-                """, unsafe_allow_html=True)
-                
-            else:
-                # Local development - use meta refresh (works fine locally)
-                progress_container.progress(0.8)
-                message_container.caption("✅ Redirecting to Google...")
-                st.markdown(f'<meta http-equiv="refresh" content="0; url={google_url}">', unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
             
             progress_container.progress(1.0)
-            time.sleep(0.5)
+            message_container.success("✅ Pop-up Google OAuth telah dibuka. Silakan login di jendela pop-up.")
+            
+            # Clear progress after short delay
+            time.sleep(2)
             progress_container.empty()
             
         except Exception as e:
-            logger.error(f"Google OAuth redirect failed: {e}")
+            logger.error(f"Google OAuth popup failed: {e}")
             progress_container.empty()
-            message_container.error("❌ Gagal mengalihkan ke Google. Silakan coba lagi.")
-            show_error_toast("❌ Gagal mengalihkan ke Google. Silakan coba lagi.")
+            message_container.error("❌ Gagal membuka pop-up Google. Silakan coba lagi.")
+            show_error_toast("❌ Gagal membuka pop-up Google. Silakan coba lagi.")
     
     # Tampilkan tips untuk login
     display_auth_tips("login")
@@ -1870,6 +1924,45 @@ def main() -> None:
                 user_email = st.session_state.get('user_email')
                 if user_email and verify_user_exists(user_email, firestore_client):
                     logger.info(f"User authenticated: {user_email}")
+                    
+                    # Auto-redirect ke halaman tools setelah login berhasil
+                    if st.session_state.get('should_redirect', False):
+                        # Clear redirect flag
+                        st.session_state['should_redirect'] = False
+                        
+                        # Show brief redirect message
+                        with st.container():
+                            st.success("🎉 Login berhasil! Mengarahkan ke dashboard...")
+                            
+                            # Simple progress animation
+                            redirect_progress = st.progress(0)
+                            for i in range(0, 101, 5):  # Faster progress
+                                redirect_progress.progress(i / 100)
+                                time.sleep(0.02)  # Very fast animation
+                            
+                            redirect_progress.empty()
+                        
+                        # Clear any query params
+                        st.query_params.clear()
+                        
+                        # Set ready flag untuk main app
+                        st.session_state['ready_for_redirect'] = True
+                        
+                        # Force immediate redirect dengan JavaScript
+                        st.markdown("""
+                            <script>
+                                // Force immediate reload untuk trigger main app workflow
+                                setTimeout(function() {
+                                    window.location.reload();
+                                }, 100);
+                            </script>
+                        """, unsafe_allow_html=True)
+                        
+                        time.sleep(0.5)  # Brief pause
+                        st.stop()  # Stop execution untuk mencegah loading form auth
+                    
+                    # User sudah login dan verified, keluar dari auth.py
+                    # Ini mengindikasikan bahwa auth sudah selesai, main app harus handle routing
                     return
                 else:
                     logger.warning(f"User verification failed: {user_email}")
