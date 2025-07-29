@@ -60,6 +60,10 @@ def detect_environment() -> Tuple[bool, str]:
     Returns:
         Tuple[bool, str]: (is_streamlit_cloud, environment_description)
     """
+    # Emergency override for troubleshooting
+    if st.secrets.get("STREAMLIT_CLOUD_OVERRIDE") == "true":
+        return True, "Streamlit Cloud (Manual Override)"
+    
     # Method 1: Primary detection - STREAMLIT_SERVER_HEADLESS
     if os.getenv('STREAMLIT_SERVER_HEADLESS') == 'true':
         return True, "Streamlit Cloud (HEADLESS=true)"
@@ -75,12 +79,25 @@ def detect_environment() -> Tuple[bool, str]:
     
     # Method 4: Host-based detection
     host = os.getenv('HOST', '').lower()
-    if 'streamlit.app' in host:
+    if 'streamlit.app' in host or '.streamlit.app' in host:
         return True, f"Streamlit Cloud (HOST={host})"
     
     # Method 5: Browser gather stats (Streamlit Cloud specific)
     if os.getenv('STREAMLIT_BROWSER_GATHER_USAGE_STATS') == 'false':
         return True, "Streamlit Cloud (STATS=false)"
+    
+    # Method 6: URL-based detection (fallback)
+    try:
+        # Check if we can access streamlit context
+        import streamlit.runtime.scriptrunner as sr
+        ctx = sr.get_script_run_ctx()
+        if ctx and hasattr(ctx, 'session_id'):
+            # This is an indicator we might be in cloud
+            session_id = str(ctx.session_id)
+            if len(session_id) > 20:  # Cloud sessions typically have longer IDs
+                return True, "Streamlit Cloud (Session Detection)"
+    except:
+        pass
     
     # Default: Local development
     return False, "Local Development"
@@ -669,10 +686,34 @@ def verify_user_exists(user_email: str, firestore_client: Any) -> bool:
 # GOOGLE OAUTH FUNCTIONS
 # =============================================================================
 
+async def get_openid_configuration() -> Dict[str, Any]:
+    """Ambil konfigurasi OpenID dari Google discovery endpoint"""
+    try:
+        openid_config_url = st.secrets.get("server_metadata_url", "https://accounts.google.com/.well-known/openid-configuration")
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(openid_config_url, timeout=10.0)
+            if response.status_code == 200:
+                config = response.json()
+                logger.info("Successfully fetched OpenID configuration")
+                return config
+            else:
+                logger.warning(f"Failed to fetch OpenID config: {response.status_code}")
+                return {}
+    except Exception as e:
+        logger.warning(f"OpenID configuration fetch failed: {e}")
+        return {}
+
 def get_google_authorization_url() -> str:
     """Hasilkan URL otorisasi Google OAuth dengan cakupan yang diperlukan"""
     try:
+        # Gunakan OpenID Discovery endpoint untuk mendapatkan authorization endpoint
         base_url = 'https://accounts.google.com/o/oauth2/v2/auth'
+        
+        # Alternative: Dapatkan dari OpenID Configuration (lebih robust)
+        openid_config_url = st.secrets.get("server_metadata_url", "https://accounts.google.com/.well-known/openid-configuration")
+        logger.info(f"Using OpenID configuration: {openid_config_url}")
+        
         redirect_uri = get_redirect_uri()
         
         # Log informasi untuk debugging
@@ -1607,11 +1648,20 @@ def display_login_form(firebase_auth: Any, firestore_client: Any) -> None:
             # Fallback: Tampilkan link manual jika JavaScript tidak bekerja
             with message_container.container():
                 st.success("✅ URL Google OAuth berhasil dibuat!")
-                st.info("💡 **Klik tombol di bawah ini jika tidak teralihkan otomatis:**")
+                st.info("💡 **Jika tidak teralihkan otomatis, klik link berikut:**")
                 
-                # Gunakan st.link_button sebagai fallback yang lebih reliable
-                if st.button("🔗 Buka Google OAuth", key="google_oauth_fallback", use_container_width=True):
-                    st.markdown(f'<meta http-equiv="refresh" content="0; url={google_url}">', unsafe_allow_html=True)
+                # Gunakan link langsung sebagai fallback (tanpa button di form)
+                st.markdown(f"""
+                <div style="text-align: center; margin: 10px 0;">
+                    <a href="{google_url}" target="_self" 
+                       style="display: inline-block; padding: 10px 20px; 
+                              background-color: #1f77b4; color: white; 
+                              text-decoration: none; border-radius: 5px; 
+                              font-weight: bold;">
+                        🔗 Buka Google OAuth
+                    </a>
+                </div>
+                """, unsafe_allow_html=True)
                     
         except Exception as e:
             logger.error(f"Google OAuth redirect failed: {e}")
@@ -1619,8 +1669,9 @@ def display_login_form(firebase_auth: Any, firestore_client: Any) -> None:
             message_container.error("❌ Gagal mengalihkan ke Google. Silakan coba lagi.")
             show_error_toast("❌ Gagal mengalihkan ke Google. Silakan coba lagi.")
             
-            # Tampilkan informasi debug untuk troubleshooting
-            if st.checkbox("🔧 Tampilkan informasi debug", key="debug_oauth"):
+            # Tampilkan informasi debug untuk troubleshooting (di luar form)
+            with message_container.container():
+                st.warning("🔧 **Debug Information:**")
                 debug_info = debug_environment_variables()
                 st.json(debug_info)
     
