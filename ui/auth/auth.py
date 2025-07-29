@@ -1952,17 +1952,25 @@ def display_login_form(firebase_auth: Any, firestore_client: Any) -> None:
             progress_container.progress(0.8)
             message_container.caption("🚀 Meluncurkan pop-up login...")
             
-            # ✨ LANGSUNG TAMPILKAN POP-UP TANPA TOMBOL TAMBAHAN ✨
-            time.sleep(0.3)  # Smooth transition
+            # ✨ DIRECT REDIRECT - LEBIH RELIABLE DARIPADA POP-UP ✨
+            time.sleep(0.5)
             progress_container.progress(1.0)
-            message_container.success("✅ Pop-up login Google dibuka! Silakan login di jendela pop-up.")
+            message_container.success("✅ Mengalihkan ke Google OAuth...")
+            show_success_toast("Mengalihkan ke Google Login...")
             
-            # Generate dan tampilkan pop-up OAuth HTML LANGSUNG - OTOMATIS BUKA POP-UP
-            popup_oauth_html = generate_popup_oauth_html(google_url)
-            components.html(popup_oauth_html, height=420, scrolling=False)
-            
-            # Auto-trigger pop-up open setelah HTML dimuat
-            show_success_toast("Pop-up login Google sedang dibuka...")
+            # Gunakan JavaScript redirect yang lebih reliable
+            components.html(f"""
+                <script>
+                    // Direct redirect ke Google OAuth
+                    window.top.location.href = '{google_url}';
+                </script>
+                <div style="text-align: center; padding: 20px;">
+                    <div style="padding: 15px; background: linear-gradient(135deg, #4285f4 0%, #1a73e8 100%); color: white; border-radius: 10px;">
+                        <h3>🔄 Mengalihkan ke Google...</h3>
+                        <p>Jika tidak otomatis teralihkan, <a href="{google_url}" style="color: white; text-decoration: underline;">klik di sini</a></p>
+                    </div>
+                </div>
+            """, height=120)
             
         except Exception as e:
             logger.error(f"Google OAuth advanced pop-up failed: {e}")
