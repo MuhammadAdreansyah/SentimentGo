@@ -767,7 +767,7 @@ def generate_popup_oauth_html(google_url: str) -> str:
             box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         ">
             <h3 style="margin: 0 0 10px 0;">🔐 Google OAuth Login</h3>
-            <p id="status-text" style="margin: 0;">Siap untuk membuka jendela login Google</p>
+            <p id="status-text" style="margin: 0;">Membuka jendela login Google...</p>
         </div>
         
         <button id="popup-login-btn" onclick="startGoogleLogin()" style="
@@ -781,6 +781,7 @@ def generate_popup_oauth_html(google_url: str) -> str:
             cursor: pointer;
             box-shadow: 0 4px 15px rgba(66, 133, 244, 0.3);
             transition: all 0.3s ease;
+            display: none;
         " onmouseover="this.style.transform='translateY(-2px)'" 
            onmouseout="this.style.transform='translateY(0px)'">
             🚀 Buka Login Google
@@ -855,6 +856,10 @@ def generate_popup_oauth_html(google_url: str) -> str:
                 
                 updateStatus('✅ Jendela login terbuka. Silakan login di jendela tersebut.');
                 
+                // Hide button setelah pop-up berhasil dibuka
+                const button = document.getElementById('popup-login-btn');
+                button.style.display = 'none';
+                
                 // Start monitoring the pop-up
                 startPopupMonitoring();
                 
@@ -923,6 +928,10 @@ def generate_popup_oauth_html(google_url: str) -> str:
                 oauthPopup.close();
             }}
             
+            // Hide button permanently setelah login berhasil
+            const button = document.getElementById('popup-login-btn');
+            button.style.display = 'none';
+            
             // AUTO REDIRECT ke halaman tools setelah login berhasil
             setTimeout(() => {{
                 updateStatus('✅ Login sukses! Mengalihkan ke aplikasi...');
@@ -943,6 +952,7 @@ def generate_popup_oauth_html(google_url: str) -> str:
             const button = document.getElementById('popup-login-btn');
             button.disabled = false;
             button.textContent = '🚀 Buka Login Google';
+            button.style.display = 'block'; // Show button lagi jika pop-up gagal
         }}
         
         // Cleanup on page unload
@@ -964,6 +974,21 @@ def generate_popup_oauth_html(google_url: str) -> str:
                 resetButton();
             }}
         }});
+        
+        // ✨ AUTO START LOGIN POP-UP KETIKA HTML DIMUAT ✨
+        window.addEventListener('DOMContentLoaded', () => {{
+            // Berikan sedikit delay untuk memastikan DOM ready
+            setTimeout(() => {{
+                startGoogleLogin();
+            }}, 500);
+        }});
+        
+        // Fallback jika DOMContentLoaded sudah lewat
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {{
+            setTimeout(() => {{
+                startGoogleLogin();
+            }}, 500);
+        }}
     </script>
     """
 
@@ -1223,6 +1248,8 @@ def handle_google_login_callback() -> bool:
                         st.session_state['logged_in'] = True
                         st.session_state['user_email'] = user_email
                         st.session_state['login_time'] = datetime.now()
+                        st.session_state['login_success'] = True  # Flag untuk toast message
+                        st.session_state['ready_for_tools'] = True  # Flag untuk akses tools
                         set_remember_me_cookies(user_email, True)
                         
                         logger.info(f"Google login successful for: {user_email}")
@@ -1391,6 +1418,8 @@ def login_user(email: str, password: str, firebase_auth: Any, firestore_client: 
         st.session_state['user_email'] = email
         st.session_state['login_time'] = datetime.now()
         st.session_state['login_attempts'] = 0
+        st.session_state['login_success'] = True  # Flag untuk toast message
+        st.session_state['ready_for_tools'] = True  # Flag untuk akses tools
         
         # Set cookies
         set_remember_me_cookies(email, remember)
@@ -1407,6 +1436,8 @@ def login_user(email: str, password: str, firebase_auth: Any, firestore_client: 
         time.sleep(1.2)  # Beri waktu untuk menampilkan progress completion
         progress_container.empty()
         message_container.empty()
+
+        st.rerun() # Redirect ke halaman tools
         return True
         
     except Exception as e:
@@ -1921,17 +1952,17 @@ def display_login_form(firebase_auth: Any, firestore_client: Any) -> None:
             progress_container.progress(0.8)
             message_container.caption("🚀 Meluncurkan pop-up login...")
             
-            # ✨ SMOOTH POP-UP LAUNCH - LANGSUNG TAMPIL ✨
-            time.sleep(0.5)  # Smooth transition
+            # ✨ LANGSUNG TAMPILKAN POP-UP TANPA TOMBOL TAMBAHAN ✨
+            time.sleep(0.3)  # Smooth transition
             progress_container.progress(1.0)
-            message_container.success("✅ Pop-up login siap! Klik tombol di bawah untuk masuk.")
+            message_container.success("✅ Pop-up login Google dibuka! Silakan login di jendela pop-up.")
             
-            # Generate dan tampilkan pop-up OAuth HTML LANGSUNG
+            # Generate dan tampilkan pop-up OAuth HTML LANGSUNG - OTOMATIS BUKA POP-UP
             popup_oauth_html = generate_popup_oauth_html(google_url)
             components.html(popup_oauth_html, height=420, scrolling=False)
             
-            # Keep progress and message visible untuk UX yang smooth
-            show_success_toast("Pop-up login Google siap digunakan!")
+            # Auto-trigger pop-up open setelah HTML dimuat
+            show_success_toast("Pop-up login Google sedang dibuka...")
             
         except Exception as e:
             logger.error(f"Google OAuth advanced pop-up failed: {e}")
