@@ -1490,107 +1490,207 @@ def display_login_form(firebase_auth: Any, firestore_client: Any) -> None:
     if google_login_clicked:
         # Gunakan containers yang sudah di-allocate
         progress_container.progress(0.1)
-        message_container.caption("🔗 Membuka pop-up Google OAuth...")
+        message_container.caption("🔗 Mempersiapkan Google OAuth...")
         
         try:
             google_url = get_google_authorization_url()
-            progress_container.progress(0.5)
+            progress_container.progress(0.3)
+            message_container.caption("🚀 Membuka jendela login Google...")
             
-            # Advanced Pop-up Authentication - Stay in Page Technique
+            # Enhanced Pop-up Technique - Multiple Fallback Methods
             st.markdown(f"""
+                <div id="googleAuthContainer" style="padding: 15px; background-color: #e3f2fd; border-radius: 8px; margin: 10px 0; border-left: 4px solid #2196f3;">
+                    <h4 style="margin: 0 0 10px 0; color: #1565c0;">🔐 Google OAuth Login</h4>
+                    <p id="authStatus" style="margin: 5px 0; font-weight: bold; color: #1976d2;">Membuka jendela login Google...</p>
+                    
+                    <!-- Method 1: Direct Click Trigger Button -->
+                    <button id="triggerPopup" onclick="attemptPopup()" style="
+                        background-color: #4285f4; 
+                        color: white; 
+                        padding: 12px 24px; 
+                        border: none;
+                        border-radius: 6px; 
+                        cursor: pointer;
+                        font-size: 1em;
+                        font-weight: bold;
+                        margin: 10px 5px;
+                        display: inline-block;
+                    ">🚀 Klik untuk Membuka Login Google</button>
+                    
+                    <!-- Method 2: Manual Link -->
+                    <a href="{google_url}" target="_blank" onclick="handleManualLogin()" style="
+                        background-color: #34a853; 
+                        color: white; 
+                        padding: 12px 24px; 
+                        text-decoration: none; 
+                        border-radius: 6px; 
+                        display: inline-block;
+                        font-size: 1em;
+                        font-weight: bold;
+                        margin: 10px 5px;
+                    ">📱 Login di Tab Baru</a>
+                    
+                    <div id="instructions" style="margin: 15px 0; padding: 10px; background-color: #fff3e0; border-radius: 5px;">
+                        <p style="margin: 0; font-size: 0.9em; color: #ef6c00;">
+                            <strong>📋 Instruksi:</strong><br>
+                            1. Klik tombol biru "Klik untuk Membuka Login Google"<br>
+                            2. Jika pop-up tidak muncul, coba tombol hijau "Login di Tab Baru"<br>
+                            3. Setelah login berhasil, kembali ke halaman ini
+                        </p>
+                    </div>
+                </div>
+                
                 <script>
-                    // Advanced Pop-up Authentication Handler
-                    function openGoogleAuthPopup() {{
-                        const popup = window.open(
-                            '{google_url}',
-                            'GoogleAuth',
-                            'width=500,height=650,scrollbars=yes,resizable=yes,status=yes,location=yes,toolbar=no,menubar=no,left=' + 
-                            (screen.width/2 - 250) + ',top=' + (screen.height/2 - 325)
-                        );
-                        
-                        // Monitor popup untuk auto-close dan callback handling
-                        const checkClosed = setInterval(() => {{
-                            try {{
-                                // Check if popup is closed
-                                if (popup.closed) {{
-                                    clearInterval(checkClosed);
-                                    // Refresh halaman utama untuk sync state dan redirect
-                                    setTimeout(() => {{
-                                        window.location.reload();
-                                    }}, 500);
-                                }}
-                                // Try to detect successful authentication
-                                if (popup.location.href.includes('oauth2callback')) {{
-                                    clearInterval(checkClosed);
-                                    popup.close();
-                                    // Show success message and reload
-                                    alert('✅ Login berhasil! Mengarahkan ke dashboard...');
-                                    setTimeout(() => {{
-                                        window.location.reload();
-                                    }}, 1000);
-                                }}
-                            }} catch(e) {{
-                                // Cross-origin access blocked - normal behavior
+                    let popupWindow = null;
+                    let popupCheckInterval = null;
+                    
+                    // Enhanced popup function with better error handling
+                    function attemptPopup() {{
+                        try {{
+                            // Update status
+                            document.getElementById('authStatus').textContent = 'Membuka pop-up...';
+                            document.getElementById('triggerPopup').style.backgroundColor = '#ff9800';
+                            document.getElementById('triggerPopup').textContent = '⏳ Membuka...';
+                            
+                            // Close existing popup if any
+                            if (popupWindow && !popupWindow.closed) {{
+                                popupWindow.close();
                             }}
-                        }}, 1000);
-                        
-                        // Timeout protection (5 menit)
-                        setTimeout(() => {{
-                            if (!popup.closed) {{
-                                popup.close();
-                                clearInterval(checkClosed);
-                                alert('⏰ Login timeout. Silakan coba lagi.');
+                            
+                            // Calculate center position
+                            const width = 500;
+                            const height = 650;
+                            const left = (screen.width - width) / 2;
+                            const top = (screen.height - height) / 2;
+                            
+                            // Attempt to open popup with enhanced parameters
+                            popupWindow = window.open(
+                                '{google_url}',
+                                'GoogleOAuth',
+                                `width=${{width}},height=${{height}},left=${{left}},top=${{top}},` +
+                                'scrollbars=yes,resizable=yes,status=yes,location=yes,toolbar=no,menubar=no,' +
+                                'directories=no,copyhistory=no'
+                            );
+                            
+                            if (popupWindow) {{
+                                // Popup successfully opened
+                                document.getElementById('authStatus').innerHTML = 
+                                    '<span style="color: #4caf50;">✅ Pop-up berhasil dibuka! Silakan login di jendela pop-up.</span>';
+                                document.getElementById('triggerPopup').style.display = 'none';
+                                
+                                // Focus the popup
+                                popupWindow.focus();
+                                
+                                // Monitor popup
+                                popupCheckInterval = setInterval(checkPopupStatus, 1000);
+                                
+                                // Timeout after 5 minutes
+                                setTimeout(() => {{
+                                    if (popupWindow && !popupWindow.closed) {{
+                                        popupWindow.close();
+                                        handlePopupTimeout();
+                                    }}
+                                }}, 300000);
+                                
+                            }} else {{
+                                // Popup blocked
+                                handlePopupBlocked();
                             }}
-                        }}, 300000);
-                        
-                        // Focus popup window
-                        popup.focus();
+                            
+                        }} catch (error) {{
+                            console.error('Popup error:', error);
+                            handlePopupBlocked();
+                        }}
                     }}
                     
-                    // Execute popup immediately
-                    openGoogleAuthPopup();
+                    function checkPopupStatus() {{
+                        try {{
+                            if (popupWindow.closed) {{
+                                clearInterval(popupCheckInterval);
+                                document.getElementById('authStatus').innerHTML = 
+                                    '<span style="color: #ff9800;">⏳ Memproses login... Halaman akan reload otomatis.</span>';
+                                
+                                // Wait a bit then reload
+                                setTimeout(() => {{
+                                    window.location.reload();
+                                }}, 2000);
+                            }}
+                        }} catch (error) {{
+                            // Cross-origin access blocked - normal behavior
+                        }}
+                    }}
+                    
+                    function handlePopupBlocked() {{
+                        document.getElementById('authStatus').innerHTML = 
+                            '<span style="color: #f44336;">❌ Pop-up diblokir browser. Gunakan tombol "Login di Tab Baru".</span>';
+                        document.getElementById('triggerPopup').style.backgroundColor = '#f44336';
+                        document.getElementById('triggerPopup').textContent = '❌ Pop-up Diblokir';
+                        document.getElementById('triggerPopup').disabled = true;
+                    }}
+                    
+                    function handlePopupTimeout() {{
+                        clearInterval(popupCheckInterval);
+                        document.getElementById('authStatus').innerHTML = 
+                            '<span style="color: #ff9800;">⏰ Login timeout. Silakan coba lagi.</span>';
+                        document.getElementById('triggerPopup').style.display = 'inline-block';
+                        document.getElementById('triggerPopup').style.backgroundColor = '#4285f4';
+                        document.getElementById('triggerPopup').textContent = '🔄 Coba Lagi';
+                        document.getElementById('triggerPopup').disabled = false;
+                    }}
+                    
+                    function handleManualLogin() {{
+                        document.getElementById('authStatus').innerHTML = 
+                            '<span style="color: #4caf50;">✅ Tab baru dibuka. Setelah login, kembali ke halaman ini dan refresh.</span>';
+                        
+                        // Auto refresh every 5 seconds to check login status
+                        let refreshCount = 0;
+                        const refreshInterval = setInterval(() => {{
+                            refreshCount++;
+                            document.getElementById('authStatus').innerHTML = 
+                                `<span style="color: #2196f3;">� Auto-refresh dalam ${{6 - refreshCount}} detik... (atau refresh manual setelah login)</span>`;
+                            
+                            if (refreshCount >= 5) {{
+                                clearInterval(refreshInterval);
+                                window.location.reload();
+                            }}
+                        }}, 1000);
+                    }}
+                    
+                    // Auto-trigger popup after page load with browser detection
+                    setTimeout(() => {{
+                        // Detect browser and environment
+                        const isStreamlitCloud = window.location.hostname.includes('streamlit.app');
+                        const isChrome = navigator.userAgent.includes('Chrome');
+                        const isFirefox = navigator.userAgent.includes('Firefox');
+                        const isSafari = navigator.userAgent.includes('Safari') && !isChrome;
+                        
+                        // Show environment info
+                        console.log('Environment:', {{
+                            'isStreamlitCloud': isStreamlitCloud,
+                            'browser': isChrome ? 'Chrome' : isFirefox ? 'Firefox' : isSafari ? 'Safari' : 'Other',
+                            'userAgent': navigator.userAgent
+                        }});
+                        
+                        // Only auto-trigger if not in restrictive environment
+                        if (!isStreamlitCloud || confirm('Coba buka pop-up Google login secara otomatis?')) {{
+                            attemptPopup();
+                        }} else {{
+                            document.getElementById('authStatus').innerHTML = 
+                                '<span style="color: #ff9800;">⚠️ Pop-up otomatis dinonaktifkan. Silakan klik tombol manual.</span>';
+                        }}
+                    }}, 500);
                 </script>
-                
-                <div style="padding: 15px; background-color: #e8f5e8; border-radius: 8px; margin: 10px 0; border-left: 4px solid #4caf50;">
-                    <h4 style="margin: 0 0 10px 0; color: #2e7d32;">🔐 Google OAuth Login</h4>
-                    <p style="margin: 5px 0;">Pop-up jendela login Google telah dibuka.</p>
-                    <p style="margin: 5px 0; font-size: 0.9em; color: #666;">
-                        <strong>Petunjuk:</strong><br>
-                        • Login di jendela pop-up yang muncul<br>
-                        • Jendela akan otomatis tertutup setelah login berhasil<br>
-                        • Anda akan diarahkan ke dashboard secara otomatis
-                    </p>
-                    <p style="margin: 10px 0 0 0; font-size: 0.85em; color: #888;">
-                        <em>Jika pop-up terblokir browser, aktifkan pop-up untuk situs ini atau gunakan link manual di bawah.</em>
-                    </p>
-                    <details style="margin-top: 10px;">
-                        <summary style="cursor: pointer; color: #1976d2;">Manual Login Link</summary>
-                        <a href="{google_url}" target="_blank" style="
-                            background-color: #4285f4; 
-                            color: white; 
-                            padding: 8px 16px; 
-                            text-decoration: none; 
-                            border-radius: 5px; 
-                            display: inline-block;
-                            margin: 10px 0;
-                            font-size: 0.9em;
-                        ">🚀 Login dengan Google (Tab Baru)</a>
-                    </details>
-                </div>
             """, unsafe_allow_html=True)
             
             progress_container.progress(1.0)
-            message_container.success("✅ Pop-up Google OAuth telah dibuka. Silakan login di jendela pop-up.")
-            
-            # Clear progress after short delay
-            time.sleep(2)
+            time.sleep(1)
             progress_container.empty()
             
         except Exception as e:
             logger.error(f"Google OAuth popup failed: {e}")
             progress_container.empty()
-            message_container.error("❌ Gagal membuka pop-up Google. Silakan coba lagi.")
-            show_error_toast("❌ Gagal membuka pop-up Google. Silakan coba lagi.")
+            message_container.error("❌ Gagal mempersiapkan Google OAuth. Silakan coba lagi.")
+            show_error_toast("❌ Gagal mempersiapkan Google OAuth.")
     
     # Tampilkan tips untuk login
     display_auth_tips("login")
