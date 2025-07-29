@@ -69,7 +69,7 @@ from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFacto
 # ==============================================================================
 
 def ensure_nltk_data():
-    """Ensure NLTK data is available for Streamlit Cloud deployment - Optimized version"""
+    """Ensure NLTK data is available for Streamlit Cloud deployment - Enhanced version"""
     import nltk
     import os
     
@@ -81,28 +81,35 @@ def ensure_nltk_data():
     if nltk_data_dir not in nltk.data.path:
         nltk.data.path.append(nltk_data_dir)
     
-    # List of required NLTK data
+    # List of required NLTK data - Updated for latest NLTK versions
     required_nltk_data = [
+        # Try new punkt_tab first, fallback to punkt for compatibility
+        ('tokenizers/punkt_tab', 'punkt_tab'),
         ('tokenizers/punkt', 'punkt'),
         ('corpora/stopwords', 'stopwords'),
     ]
     
-    missing_data = []
+    downloaded_data = set()
     
     for data_path, data_name in required_nltk_data:
         try:
             nltk.data.find(data_path)
+            downloaded_data.add(data_name)
         except LookupError:
-            missing_data.append(data_name)
-    
-    if missing_data:
-        try:
-            for data_name in missing_data:
-                nltk.download(data_name, quiet=True, download_dir=nltk_data_dir)
-        except Exception as e:
-            # Fallback: continue without NLTK data
-            print(f"Warning: Could not download NLTK data: {e}")
-            pass
+            if data_name not in downloaded_data:
+                try:
+                    print(f"Downloading NLTK data: {data_name}")
+                    nltk.download(data_name, quiet=True, download_dir=nltk_data_dir)
+                    downloaded_data.add(data_name)
+                except Exception as e:
+                    print(f"Warning: Could not download NLTK data {data_name}: {e}")
+                    # For punkt compatibility: if punkt_tab fails, ensure punkt is available
+                    if data_name == 'punkt_tab':
+                        try:
+                            nltk.download('punkt', quiet=True, download_dir=nltk_data_dir)
+                            downloaded_data.add('punkt')
+                        except Exception:
+                            pass
 
 # Initialize NLTK data quietly
 try:

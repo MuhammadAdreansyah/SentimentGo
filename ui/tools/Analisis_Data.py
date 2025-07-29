@@ -41,6 +41,37 @@ import nltk
 from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk import FreqDist
 
+# Safe tokenization functions with fallback
+def safe_word_tokenize(text):
+    """Safe word tokenization with fallback for missing NLTK data"""
+    try:
+        return word_tokenize(text)
+    except LookupError:
+        try:
+            # Try to download missing data
+            nltk.download('punkt_tab', quiet=True)
+            nltk.download('punkt', quiet=True)
+            return word_tokenize(text)
+        except Exception:
+            # Fallback to regex tokenization
+            import re
+            return re.findall(r'\b\w+\b', text.lower())
+
+def safe_sent_tokenize(text):
+    """Safe sentence tokenization with fallback for missing NLTK data"""
+    try:
+        return sent_tokenize(text)
+    except LookupError:
+        try:
+            # Try to download missing data
+            nltk.download('punkt_tab', quiet=True)
+            nltk.download('punkt', quiet=True)
+            return sent_tokenize(text)
+        except Exception:
+            # Fallback to simple split
+            sentences = [s.strip() for s in text.split('.') if s.strip()]
+            return sentences
+
 # Authentication and utilities
 from ui.auth import auth
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -898,16 +929,18 @@ def render_text_summary_tab(preprocessed_text: str) -> None:
     
     # Basic text statistics with error handling
     try:
-        # Ensure NLTK data is available
+        # Enhanced NLTK tokenization with fallback
         try:
-            sentences = sent_tokenize(preprocessed_text)
-            words = word_tokenize(preprocessed_text)
-        except LookupError:
-            st.error("❌ Data NLTK tidak tersedia. Menggunakan metode alternatif...")
+            # Try safe tokenization first
+            words = safe_word_tokenize(preprocessed_text)
+            sentences = safe_sent_tokenize(preprocessed_text)
+        except Exception as general_error:
+            print(f"General tokenization error: {general_error}")
+            st.error(f"❌ Error in word frequency analysis: {general_error}")
             # Fallback to simple split
-            sentences = preprocessed_text.split('.')
-            sentences = [s.strip() for s in sentences if s.strip()]
-            words = preprocessed_text.split()
+            sentences = [s.strip() for s in preprocessed_text.split('.') if s.strip()]
+            import re
+            words = re.findall(r'\b\w+\b', preprocessed_text.lower())
         
         unique_words = set(words)
         
@@ -991,7 +1024,7 @@ def render_text_summary_tab(preprocessed_text: str) -> None:
                         continue
                         
                     try:
-                        sent_words = word_tokenize(sent)
+                        sent_words = safe_word_tokenize(sent)
                     except:
                         sent_words = sent.split()
                     

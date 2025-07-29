@@ -1,2 +1,5 @@
 build-essential
 python3-dev
+libffi-dev
+libssl-dev
+pkg-config

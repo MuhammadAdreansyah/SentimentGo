@@ -33,6 +33,22 @@ import numpy as np
 import sys
 import os
 import base64
+
+# Safe tokenization function with fallback
+def safe_word_tokenize(text):
+    """Safe word tokenization with fallback for missing NLTK data"""
+    try:
+        return nltk.word_tokenize(text)
+    except LookupError:
+        try:
+            # Try to download missing data
+            nltk.download('punkt_tab', quiet=True)
+            nltk.download('punkt', quiet=True)
+            return nltk.word_tokenize(text)
+        except Exception:
+            # Fallback to regex tokenization
+            import re
+            return re.findall(r'\b\w+\b', text.lower())
 import traceback
 from typing import Dict, Any, Optional, Tuple
 
@@ -349,7 +365,8 @@ class SentimentPredictionInterface:
         st.subheader("Kata Kunci yang Mempengaruhi Prediksi")
         
         try:
-            clean_tokens = nltk.word_tokenize(text_input.lower())
+            # Enhanced NLTK tokenization with fallback
+            clean_tokens = safe_word_tokenize(text_input.lower())
             
             if clean_tokens:
                 token_df = pd.DataFrame({
@@ -464,7 +481,7 @@ class SentimentPredictionInterface:
                 "Nilai": [
                     f"{prediction} {emoji}",
                     f"{confidence:.2f}%",
-                    len(nltk.word_tokenize(text_input)),
+                    len(safe_word_tokenize(text_input)),
                     len(text_input)
                 ]
             }
